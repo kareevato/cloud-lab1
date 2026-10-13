@@ -62,7 +62,7 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
             --comment "deploy ${{ github.sha }}" \
-            --parameters '{"commands":["/usr/local/bin/deploy-app.sh ${{ github.sha }}"]}' \
+            --parameters '{"commands":["cloud-init status --wait > /dev/null || true","/usr/local/bin/deploy-app.sh ${{ github.sha }}"]}' \
             --query Command.CommandId --output text)
 
           for i in $(seq 1 60); do
