@@ -2,8 +2,8 @@
 
 REST API для нотаток (FastAPI + PostgreSQL) з JWT-автентифікацією, розгорнутий в AWS (`eu-north-1`) через Terraform з автоматичним деплоєм з GitHub Actions.
 
-**Публічна адреса:** http://cloud-lab1-alb-1036023312.eu-north-1.elb.amazonaws.com
-**Swagger UI:** http://cloud-lab1-alb-1036023312.eu-north-1.elb.amazonaws.com/docs
+**Публічна адреса:** http://cloud-lab1-alb-1413139306.eu-north-1.elb.amazonaws.com
+**Swagger UI:** http://cloud-lab1-alb-1413139306.eu-north-1.elb.amazonaws.com/docs
 
 ## Ендпоінти
 

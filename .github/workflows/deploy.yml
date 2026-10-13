@@ -16,7 +16,7 @@ concurrency:
 env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: cloud-lab1-app
-  ROLE_ARN: arn:aws:iam::299533424924:role/cloud-lab1-github-actions-role
+  ROLE_ARN: arn:aws:iam::022083139955:role/cloud-lab1-github-actions-role
   INSTANCE_NAME: cloud-lab1-app
   ALB_NAME: cloud-lab1-alb
 
