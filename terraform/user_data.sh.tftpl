@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euxo pipefail
+
+dnf install -y docker amazon-cloudwatch-agent
+systemctl enable --now docker
+
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWCONFIG'
+{
+  "metrics": {
+    "namespace": "CWAgent",
+    "append_dimensions": { "InstanceId": "$${aws:InstanceId}" },
+    "metrics_collected": {
+      "mem": { "measurement": ["mem_used_percent"] }
+    }
+  }
+}
+CWCONFIG
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+cat > /usr/local/bin/deploy-app.sh <<'DEPLOY'
+#!/bin/bash
+# Usage: deploy-app.sh <image-tag>
+set -euo pipefail
+
+TAG="$${1:-latest}"
+REGION="${region}"
+REPO_URL="${repo_url}"
+REGISTRY="$${REPO_URL%%/*}"
+
+param() {
+  aws ssm get-parameter --region "$REGION" --with-decryption --name "$1" --query Parameter.Value --output text
+}
+
+aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+docker pull "$REPO_URL:$TAG"
+
+ENV_FILE=$(mktemp)
+chmod 600 "$ENV_FILE"
+{
+  echo "DATABASE_URL=$(param ${param_prefix}/database_url)"
+  echo "JWT_SECRET_KEY=$(param ${param_prefix}/jwt_secret)"
+  echo "ADMIN_USERNAME=$(param ${param_prefix}/admin_username)"
+  echo "ADMIN_PASSWORD=$(param ${param_prefix}/admin_password)"
+  echo "APP_VERSION=$TAG"
+} > "$ENV_FILE"
+
+docker rm -f app 2>/dev/null || true
+docker run -d --name app --restart always -p 8000:8000 \
+  --env-file "$ENV_FILE" \
+  --log-driver awslogs \
+  --log-opt awslogs-region="$REGION" \
+  --log-opt awslogs-group="${log_group}" \
+  "$REPO_URL:$TAG"
+rm -f "$ENV_FILE"
+
+docker image prune -af --filter "until=24h" || true
+echo "Deployed $REPO_URL:$TAG"
+DEPLOY
+chmod +x /usr/local/bin/deploy-app.sh
+
+# До першого запуску CI в ECR ще немає образу — тоді чекаємо на деплой з GitHub Actions
+/usr/local/bin/deploy-app.sh latest || echo "No image in ECR yet, waiting for CI deploy"
