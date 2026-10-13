@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import Column, Integer, String
@@ -9,7 +9,10 @@ import jwt
 
 from database import Base, engine, get_db
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-jwt-key-2026")
+SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+APP_VERSION = os.getenv("APP_VERSION", "local")
 ALGORITHM = "HS256"
 
 app = FastAPI(
@@ -19,7 +22,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 class NoteModel(Base):
     __tablename__ = "notes"
@@ -35,17 +38,21 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+def unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+def verify_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    if credentials is None:
+        raise unauthorized("Not authenticated")
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("sub")
     except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise unauthorized("Invalid or expired JWT token")
 
 @app.get("/health")
 def health_check():
@@ -53,19 +60,16 @@ def health_check():
 
 @app.get("/")
 def read_root():
-    return {"message": "REST API is running"}
+    return {"message": "REST API is running", "version": APP_VERSION}
 
 @app.post("/auth/login")
 def login(creds: LoginRequest):
-    if creds.username == "admin" and creds.password == "admin123":
-        expire = datetime.utcnow() + timedelta(hours=2)
+    if creds.username == ADMIN_USERNAME and creds.password == ADMIN_PASSWORD:
+        expire = datetime.now(timezone.utc) + timedelta(hours=2)
         token = jwt.encode({"sub": creds.username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
         return {"access_token": token, "token_type": "bearer"}
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect username or password"
-    )
+
+    raise unauthorized("Incorrect username or password")
 
 @app.get("/notes")
 def get_notes(db: Session = Depends(get_db)):
