@@ -60,10 +60,16 @@ resource "aws_iam_role_policy" "github_actions" {
         Resource = aws_ecr_repository.app.arn
       },
       {
-        Sid      = "RunDeployOnAppInstance"
+        Sid      = "RunDeployOnAppInstances"
         Effect   = "Allow"
         Action   = "ssm:SendCommand"
-        Resource = aws_instance.app.arn
+        Resource = "arn:aws:ec2:${var.aws_region}:${local.account_id}:instance/*"
+      },
+      {
+        Sid      = "PublishImageTag"
+        Effect   = "Allow"
+        Action   = "ssm:PutParameter"
+        Resource = aws_ssm_parameter.image_tag.arn
       },
       {
         Sid      = "RunShellScriptDocument"

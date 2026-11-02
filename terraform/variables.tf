@@ -43,3 +43,24 @@ variable "monthly_budget_usd" {
   type    = string
   default = "5"
 }
+
+variable "asg_min_size" {
+  type    = number
+  default = 1
+}
+
+variable "asg_max_size" {
+  type    = number
+  default = 3
+
+  validation {
+    condition     = var.asg_max_size >= 2 && var.asg_max_size <= 4
+    error_message = "Максимум екземплярів має бути від 2 до 4."
+  }
+}
+
+variable "requests_per_target_per_minute" {
+  type        = number
+  default     = 1000
+  description = "Ціль target tracking: запитів на інстанс за хвилину"
+}

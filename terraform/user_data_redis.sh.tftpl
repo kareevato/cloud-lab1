@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euxo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+
+PASSWORD=$(aws ssm get-parameter --region "${region}" --with-decryption \
+  --name "${param_prefix}/redis_password" --query Parameter.Value --output text)
+
+docker rm -f redis 2>/dev/null || true
+docker run -d --name redis --restart always -p 6379:6379 \
+  public.ecr.aws/docker/library/redis:7-alpine \
+  redis-server --requirepass "$PASSWORD" --save "" --appendonly no
+
+echo "Redis is up"

@@ -57,8 +57,29 @@ resource "aws_cloudwatch_metric_alarm" "target_5xx" {
 
 locals {
   alb_dim = ["LoadBalancer", aws_lb.main.arn_suffix]
-  ec2_dim = ["InstanceId", aws_instance.app.id]
+  asg_dim = ["AutoScalingGroupName", aws_autoscaling_group.app.name]
   rds_dim = ["DBInstanceIdentifier", aws_db_instance.postgres.identifier]
+}
+
+resource "aws_cloudwatch_metric_alarm" "at_max_capacity" {
+  alarm_name          = "${var.project}-at-max-instances"
+  alarm_description   = "Група тримає максимум екземплярів 2 хвилини: масштабування вперлося в стелю"
+  namespace           = "AWS/AutoScaling"
+  metric_name         = "GroupInServiceInstances"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.asg_max_size
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.app.name
+  }
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
 }
 
 resource "aws_cloudwatch_dashboard" "main" {
@@ -69,7 +90,32 @@ resource "aws_cloudwatch_dashboard" "main" {
       {
         type = "metric", x = 0, y = 0, width = 8, height = 6
         properties = {
-          title   = "Requests"
+          title  = "Instances (desired / in service)"
+          region = var.aws_region
+          stat   = "Average"
+          period = 60
+          metrics = [
+            concat(["AWS/AutoScaling", "GroupDesiredCapacity"], local.asg_dim),
+            concat(["AWS/AutoScaling", "GroupInServiceInstances"], local.asg_dim),
+          ]
+        }
+      },
+      {
+        type = "metric", x = 8, y = 0, width = 8, height = 6
+        properties = {
+          title  = "CPU (%)"
+          region = var.aws_region
+          stat   = "Average"
+          period = 60
+          metrics = [
+            concat(["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", aws_autoscaling_group.app.name]),
+          ]
+        }
+      },
+      {
+        type = "metric", x = 16, y = 0, width = 8, height = 6
+        properties = {
+          title   = "Requests per minute"
           region  = var.aws_region
           stat    = "Sum"
           period  = 60
@@ -77,9 +123,20 @@ resource "aws_cloudwatch_dashboard" "main" {
         }
       },
       {
-        type = "metric", x = 8, y = 0, width = 8, height = 6
+        type = "metric", x = 0, y = 6, width = 12, height = 6
         properties = {
-          title  = "5xx errors"
+          title  = "Latency p95 (s)"
+          region = var.aws_region
+          period = 60
+          metrics = [
+            concat(["AWS/ApplicationELB", "TargetResponseTime"], local.alb_dim, [{ stat = "p95" }]),
+          ]
+        }
+      },
+      {
+        type = "metric", x = 12, y = 6, width = 12, height = 6
+        properties = {
+          title  = "5xx"
           region = var.aws_region
           stat   = "Sum"
           period = 60
@@ -90,51 +147,25 @@ resource "aws_cloudwatch_dashboard" "main" {
         }
       },
       {
-        type = "metric", x = 16, y = 0, width = 8, height = 6
+        type = "metric", x = 0, y = 12, width = 12, height = 6
         properties = {
-          title  = "Latency (s)"
+          title  = "Queue depth / workers"
           region = var.aws_region
           period = 60
           metrics = [
-            concat(["AWS/ApplicationELB", "TargetResponseTime"], local.alb_dim, [{ stat = "Average" }]),
-            concat(["AWS/ApplicationELB", "TargetResponseTime"], local.alb_dim, [{ stat = "p95" }]),
+            ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", aws_sqs_queue.notes.name, { stat = "Maximum" }],
+            ["AWS/AutoScaling", "GroupInServiceInstances", "AutoScalingGroupName", aws_autoscaling_group.worker.name, { stat = "Average", yAxis = "right" }],
           ]
         }
       },
       {
-        type = "metric", x = 0, y = 6, width = 8, height = 6
-        properties = {
-          title  = "EC2 CPU / memory (%)"
-          region = var.aws_region
-          stat   = "Average"
-          period = 60
-          metrics = [
-            concat(["AWS/EC2", "CPUUtilization"], local.ec2_dim),
-            concat(["CWAgent", "mem_used_percent"], local.ec2_dim),
-          ]
-        }
-      },
-      {
-        type = "metric", x = 8, y = 6, width = 8, height = 6
+        type = "metric", x = 12, y = 12, width = 12, height = 6
         properties = {
           title   = "RDS CPU (%)"
           region  = var.aws_region
           stat    = "Average"
           period  = 60
           metrics = [concat(["AWS/RDS", "CPUUtilization"], local.rds_dim)]
-        }
-      },
-      {
-        type = "metric", x = 16, y = 6, width = 8, height = 6
-        properties = {
-          title  = "RDS memory / connections"
-          region = var.aws_region
-          stat   = "Average"
-          period = 60
-          metrics = [
-            concat(["AWS/RDS", "FreeableMemory"], local.rds_dim),
-            concat(["AWS/RDS", "DatabaseConnections"], local.rds_dim, [{ yAxis = "right" }]),
-          ]
         }
       },
     ]

@@ -7,3 +7,5 @@ terraform.tfvars
 __pycache__/
 *.pyc
 venv/
+.pytest_cache/
+loadtest/summary.json

@@ -1,42 +1,63 @@
+import json
 import os
+import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import Session
+from typing import Annotated
+
+import boto3
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 import jwt
 
-from database import Base, engine, get_db
+import cache
+from database import engine, ensure_schema, get_db
+from models import JobModel, NoteModel
 
 SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 APP_VERSION = os.getenv("APP_VERSION", "local")
 ALGORITHM = "HS256"
+LIST_LIMIT = 50
+
+security = HTTPBearer(auto_error=False)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Importing models above registers tables; create anything the lab 1 database is missing.
+    ensure_schema()
+    yield
+    engine.dispose()
+    redis_client = cache.client()
+    if redis_client is not None:
+        try:
+            redis_client.close()
+        except Exception:
+            pass
+
 
 app = FastAPI(
     title="Cloud Lab API",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-security = HTTPBearer(auto_error=False)
-
-class NoteModel(Base):
-    __tablename__ = "notes"
-    id = Column(Integer, primary_key=True, index=True)
-    text = Column(String, index=True)
-
-Base.metadata.create_all(bind=engine)
 
 class NoteCreate(BaseModel):
     text: str
 
+
 class LoginRequest(BaseModel):
     username: str
     password: str
+
 
 def unauthorized(detail: str) -> HTTPException:
     return HTTPException(
@@ -45,22 +66,42 @@ def unauthorized(detail: str) -> HTTPException:
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-def verify_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+
+def verify_token(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> str:
     if credentials is None:
         raise unauthorized("Not authenticated")
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("sub")
     except jwt.PyJWTError:
         raise unauthorized("Invalid or expired JWT token")
+    subject = payload.get("sub")
+    if not subject:
+        raise unauthorized("Invalid or expired JWT token")
+    return subject
+
+
+def note_to_dict(note: NoteModel) -> dict:
+    return {"id": note.id, "text": note.text, "author": note.author}
+
+
+def mark_cache(response: Response, cache_status: str) -> None:
+    response.headers["X-Cache"] = cache_status
+
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
+
 @app.get("/")
 def read_root():
     return {"message": "REST API is running", "version": APP_VERSION}
+
+
+@app.get("/cache/stats")
+def cache_stats():
+    return cache.stats()
+
 
 @app.post("/auth/login")
 def login(creds: LoginRequest):
@@ -68,17 +109,103 @@ def login(creds: LoginRequest):
         expire = datetime.now(timezone.utc) + timedelta(hours=2)
         token = jwt.encode({"sub": creds.username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
         return {"access_token": token, "token_type": "bearer"}
-
     raise unauthorized("Incorrect username or password")
 
-@app.get("/notes")
-def get_notes(db: Session = Depends(get_db)):
-    return db.query(NoteModel).all()
 
-@app.post("/notes", dependencies=[Depends(verify_token)])
-def create_note(note: NoteCreate, db: Session = Depends(get_db)):
-    db_note = NoteModel(text=note.text)
+@app.get("/notes")
+def get_notes(response: Response, db: Session = Depends(get_db)):
+    def load():
+        rows = db.query(NoteModel).order_by(NoteModel.id.desc()).limit(LIST_LIMIT).all()
+        return [note_to_dict(row) for row in rows]
+
+    payload, cache_status = cache.remember(cache.NOTES_LIST_KEY, load)
+    mark_cache(response, cache_status)
+    return payload
+
+
+@app.get("/notes/{note_id}")
+def get_note(note_id: int, response: Response, db: Session = Depends(get_db)):
+    def load():
+        note = db.query(NoteModel).filter(NoteModel.id == note_id).first()
+        if note is None:
+            return None
+        return note_to_dict(note)
+
+    payload, cache_status = cache.remember(f"note:{note_id}", load)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    mark_cache(response, cache_status)
+    return payload
+
+
+@app.get("/authors/{author}")
+def get_author(author: str, response: Response, db: Session = Depends(get_db)):
+    def load():
+        count = db.query(NoteModel).filter(NoteModel.author == author).count()
+        return {"author": author, "notes_count": count}
+
+    payload, cache_status = cache.remember(f"author:{author}", load)
+    mark_cache(response, cache_status)
+    return payload
+
+
+@app.post("/notes")
+def create_note(
+    note: NoteCreate,
+    response: Response,
+    db: Session = Depends(get_db),
+    author: str = Depends(verify_token),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+):
+    replayed = cache.get_idempotent(idempotency_key)
+    if replayed is not None:
+        response.headers["Idempotent-Replayed"] = "true"
+        return replayed
+
+    db_note = NoteModel(text=note.text, author=author)
     db.add(db_note)
     db.commit()
     db.refresh(db_note)
-    return db_note
+    payload = note_to_dict(db_note)
+    cache.save_idempotent(idempotency_key, payload)
+    cache.invalidate(cache.NOTES_LIST_KEY, f"author:{author}")
+    return payload
+
+
+def queue():
+    queue_url = os.getenv("SQS_QUEUE_URL")
+    if not queue_url:
+        return None, None
+    region = os.getenv("AWS_REGION", "eu-north-1")
+    return boto3.client("sqs", region_name=region), queue_url
+
+
+@app.post("/notes/async")
+def create_note_async(
+    note: NoteCreate,
+    db: Session = Depends(get_db),
+    author: str = Depends(verify_token),
+):
+    client, queue_url = queue()
+    if client is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Queue is not configured")
+
+    job_id = str(uuid.uuid4())
+    db.add(JobModel(id=job_id, status="pending"))
+    db.commit()
+    client.send_message(
+        QueueUrl=queue_url,
+        MessageBody=json.dumps({"job_id": job_id, "text": note.text, "author": author}),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={"job_id": job_id, "status": "pending", "status_url": f"/jobs/{job_id}"},
+    )
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(JobModel).filter(JobModel.id == job_id).first()
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return {"job_id": job.id, "status": job.status, "note_id": job.note_id}

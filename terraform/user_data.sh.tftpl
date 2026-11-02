@@ -23,7 +23,7 @@ cat > /usr/local/bin/deploy-app.sh <<'DEPLOY'
 # Usage: deploy-app.sh <image-tag>
 set -euo pipefail
 
-TAG="$${1:-latest}"
+TAG="$${1:-}"
 REGION="${region}"
 REPO_URL="${repo_url}"
 REGISTRY="$${REPO_URL%%/*}"
@@ -31,6 +31,10 @@ REGISTRY="$${REPO_URL%%/*}"
 param() {
   aws ssm get-parameter --region "$REGION" --with-decryption --name "$1" --query Parameter.Value --output text
 }
+
+if [ -z "$TAG" ]; then
+  TAG=$(param ${param_prefix}/image_tag)
+fi
 
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
 docker pull "$REPO_URL:$TAG"
@@ -42,11 +46,16 @@ chmod 600 "$ENV_FILE"
   echo "JWT_SECRET_KEY=$(param ${param_prefix}/jwt_secret)"
   echo "ADMIN_USERNAME=$(param ${param_prefix}/admin_username)"
   echo "ADMIN_PASSWORD=$(param ${param_prefix}/admin_password)"
+  echo "REDIS_URL=$(param ${param_prefix}/redis_url)"
+  echo "CACHE_ENABLED=$(param ${param_prefix}/cache_enabled)"
+  echo "CACHE_TTL_SECONDS=$(param ${param_prefix}/cache_ttl_seconds)"
+  echo "SQS_QUEUE_URL=$(param ${param_prefix}/sqs_queue_url)"
+  echo "AWS_REGION=$REGION"
   echo "APP_VERSION=$TAG"
 } > "$ENV_FILE"
 
 docker rm -f app 2>/dev/null || true
-docker run -d --name app --restart always -p 8000:8000 \
+docker run -d --name app --restart always --stop-timeout 30 -p 8000:8000 \
   --env-file "$ENV_FILE" \
   --log-driver awslogs \
   --log-opt awslogs-region="$REGION" \
@@ -59,5 +68,6 @@ echo "Deployed $REPO_URL:$TAG"
 DEPLOY
 chmod +x /usr/local/bin/deploy-app.sh
 
-# До першого запуску CI в ECR ще немає образу — тоді чекаємо на деплой з GitHub Actions
-/usr/local/bin/deploy-app.sh latest || echo "No image in ECR yet, waiting for CI deploy"
+# Новий інстанс піднімає образ, тег якого CI поклав у SSM.
+TAG=$(aws ssm get-parameter --region "${region}" --name "${param_prefix}/image_tag" --query Parameter.Value --output text || echo latest)
+/usr/local/bin/deploy-app.sh "$TAG" || echo "No image in ECR yet, waiting for CI deploy"

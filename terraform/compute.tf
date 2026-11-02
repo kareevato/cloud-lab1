@@ -1,7 +1,3 @@
-data "aws_ssm_parameter" "al2023_ami" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}
-
 resource "aws_iam_role" "ec2" {
   name = "${var.project}-ec2-role"
 
@@ -68,6 +64,18 @@ resource "aws_iam_role_policy" "ec2_app" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.app.arn}:*"
       },
+      {
+        Sid    = "NotesQueue"
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+        ]
+        Resource = aws_sqs_queue.notes.arn
+      },
     ]
   })
 }
@@ -75,40 +83,4 @@ resource "aws_iam_role_policy" "ec2_app" {
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project}-ec2-profile"
   role = aws_iam_role.ec2.name
-}
-
-resource "aws_instance" "app" {
-  ami                         = data.aws_ssm_parameter.al2023_ami.insecure_value
-  instance_type               = "t3.micro"
-  subnet_id                   = aws_subnet.public_1.id
-  vpc_security_group_ids      = [aws_security_group.app_sg.id]
-  iam_instance_profile        = aws_iam_instance_profile.ec2.name
-  associate_public_ip_address = true
-
-  metadata_options {
-    http_tokens = "required"
-  }
-
-  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    region       = var.aws_region
-    repo_url     = aws_ecr_repository.app.repository_url
-    param_prefix = local.param_prefix
-    log_group    = aws_cloudwatch_log_group.app.name
-  })
-  user_data_replace_on_change = true
-
-  lifecycle {
-    ignore_changes = [ami]
-  }
-
-  depends_on = [
-    aws_iam_role_policy.ec2_app,
-    aws_iam_role_policy_attachment.ec2_ssm_core,
-    aws_ssm_parameter.database_url,
-    aws_ssm_parameter.jwt_secret,
-    aws_ssm_parameter.admin_username,
-    aws_ssm_parameter.admin_password,
-  ]
-
-  tags = { Name = "${var.project}-app" }
 }
