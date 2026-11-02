@@ -24,16 +24,8 @@ output "asg_name" {
   value = aws_autoscaling_group.app.name
 }
 
-output "worker_asg_name" {
-  value = aws_autoscaling_group.worker.name
-}
-
 output "redis_private_ip" {
   value = aws_instance.redis.private_ip
-}
-
-output "queue_url" {
-  value = aws_sqs_queue.notes.url
 }
 
 output "ssm_session_command" {

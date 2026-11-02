@@ -9,4 +9,3 @@ os.environ["ADMIN_USERNAME"] = "admin"
 os.environ["CACHE_ENABLED"] = "true"
 os.environ["REDIS_URL"] = "redis://fake/0"
 os.environ["CACHE_TTL_SECONDS"] = "45"
-os.environ.pop("SQS_QUEUE_URL", None)

@@ -7,7 +7,6 @@ import redis
 NOTES_LIST_KEY = "notes:list"
 HITS_KEY = "cache:hits"
 MISSES_KEY = "cache:misses"
-IDEMPOTENCY_TTL = 60 * 60 * 24
 
 _client = None
 
@@ -111,21 +110,6 @@ def remember(key: str, loader, ttl: int | None = None, cache_none: bool = False)
         except redis.RedisError:
             pass
     return data, "MISS"
-
-
-def get_idempotent(key: str | None):
-    if not key:
-        return None
-    cached, status = _read(f"idem:{key}")
-    if status == "HIT":
-        return cached
-    return None
-
-
-def save_idempotent(key: str | None, payload) -> None:
-    if not key:
-        return
-    set_json(f"idem:{key}", payload, IDEMPOTENCY_TTL)
 
 
 def stats() -> dict:

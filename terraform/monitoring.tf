@@ -147,19 +147,7 @@ resource "aws_cloudwatch_dashboard" "main" {
         }
       },
       {
-        type = "metric", x = 0, y = 12, width = 12, height = 6
-        properties = {
-          title  = "Queue depth / workers"
-          region = var.aws_region
-          period = 60
-          metrics = [
-            ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", aws_sqs_queue.notes.name, { stat = "Maximum" }],
-            ["AWS/AutoScaling", "GroupInServiceInstances", "AutoScalingGroupName", aws_autoscaling_group.worker.name, { stat = "Average", yAxis = "right" }],
-          ]
-        }
-      },
-      {
-        type = "metric", x = 12, y = 12, width = 12, height = 6
+        type = "metric", x = 0, y = 12, width = 24, height = 6
         properties = {
           title   = "RDS CPU (%)"
           region  = var.aws_region

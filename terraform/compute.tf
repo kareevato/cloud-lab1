@@ -64,18 +64,6 @@ resource "aws_iam_role_policy" "ec2_app" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.app.arn}:*"
       },
-      {
-        Sid    = "NotesQueue"
-        Effect = "Allow"
-        Action = [
-          "sqs:SendMessage",
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes",
-          "sqs:GetQueueUrl",
-        ]
-        Resource = aws_sqs_queue.notes.arn
-      },
     ]
   })
 }

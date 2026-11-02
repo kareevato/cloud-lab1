@@ -19,7 +19,6 @@ env:
   ECR_REPOSITORY: cloud-lab1-app
   ROLE_ARN: arn:aws:iam::022083139955:role/cloud-lab1-github-actions-role
   INSTANCE_NAME: cloud-lab1-app
-  WORKER_NAME: cloud-lab1-worker
   ALB_NAME: cloud-lab1-alb
 
 jobs:
@@ -124,7 +123,6 @@ jobs:
           }
 
           deploy_named "$INSTANCE_NAME" "/usr/local/bin/deploy-app.sh" yes
-          deploy_named "$WORKER_NAME" "/usr/local/bin/deploy-worker.sh" no
 
       - name: Smoke test through ALB
         run: |

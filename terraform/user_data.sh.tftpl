@@ -49,8 +49,6 @@ chmod 600 "$ENV_FILE"
   echo "REDIS_URL=$(param ${param_prefix}/redis_url)"
   echo "CACHE_ENABLED=$(param ${param_prefix}/cache_enabled)"
   echo "CACHE_TTL_SECONDS=$(param ${param_prefix}/cache_ttl_seconds)"
-  echo "SQS_QUEUE_URL=$(param ${param_prefix}/sqs_queue_url)"
-  echo "AWS_REGION=$REGION"
   echo "APP_VERSION=$TAG"
 } > "$ENV_FILE"
 

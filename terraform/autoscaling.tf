@@ -23,11 +23,10 @@ resource "aws_launch_template" "app" {
 
   vpc_security_group_ids = [aws_security_group.app_sg.id]
 
-  # IMDSv2. Hop limit 2 lets the container (one extra network hop) read the instance role for SQS.
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
-    http_put_response_hop_limit = 2
+    http_put_response_hop_limit = 1
   }
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
@@ -101,7 +100,6 @@ resource "aws_autoscaling_group" "app" {
     aws_ssm_parameter.redis_url,
     aws_ssm_parameter.cache_enabled,
     aws_ssm_parameter.cache_ttl,
-    aws_ssm_parameter.sqs_queue_url,
     aws_ssm_parameter.image_tag,
   ]
 }
