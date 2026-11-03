@@ -1,6 +1,6 @@
 # Навантажувальний сценарій
 
-Сценарій: `loadtest/notes.js`. Інструкція запуску і одна команда: `loadtest/run.sh`.
+Сценарій: `loadtest/notes.js`. Запуск — одна команда нижче.
 
 ## Профіль
 
@@ -26,10 +26,10 @@
 ## Команда
 
 ```bash
-BASE_URL=http://<alb-dns> ADMIN_PASSWORD='...' VUS=15 ./loadtest/run.sh
+k6 run --summary-export loadtest/summary.json -e BASE_URL=http://<alb-dns> -e ADMIN_PASSWORD='...' -e VUS=15 loadtest/notes.js
 ```
 
-`ADMIN_USERNAME` за замовчуванням `admin`. Якщо `k6` немає локально, скрипт сам запускає `grafana/k6` у Docker. Для адреси ALB в інтернеті це працює. Для локального Compose ставте `k6` на хост і `BASE_URL=http://localhost:8000`.
+`ADMIN_USERNAME` за замовчуванням `admin`. `k6` має бути встановлений локально. Для локального Compose: `BASE_URL=http://localhost:8000`.
 
 Після прогону сирий звіт лежить у `loadtest/summary.json` (файл у `.gitignore`).
 
@@ -38,7 +38,7 @@ BASE_URL=http://<alb-dns> ADMIN_PASSWORD='...' VUS=15 ./loadtest/run.sh
 - Кількість запитів — `http_reqs` (count).
 - Частка помилок — `http_req_failed` (rate).
 - Латентність: `http_req_duration` → `p(50)`, `p(95)`, `p(99)`. У k6 p50 — це і є медіана.
-- Влучання в кеш — лічильники `cache_hits` і `cache_misses` (лише читання з заголовком `X-Cache`).
+- Влучання в кеш — заголовок `X-Cache` на відповідях читання (`HIT` або `MISS`).
 
 p50 — типовий користувач. p95 і p99 — повільний хвіст. Середнє ховає цей хвіст: тисяча швидких відповідей і кілька таймаутів дають «нормальне» середнє, хоча частина людей чекала секунди.
 

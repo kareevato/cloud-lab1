@@ -72,3 +72,45 @@ resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project}-ec2-profile"
   role = aws_iam_role.ec2.name
 }
+
+data "aws_ssm_parameter" "al2023_ami" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+}
+
+resource "aws_ssm_parameter" "image_tag" {
+  name  = "${local.param_prefix}/image_tag"
+  type  = "String"
+  value = "latest"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_launch_template" "app" {
+  name                   = "${var.project}-app"
+  image_id               = data.aws_ssm_parameter.al2023_ami.insecure_value
+  instance_type          = "t3.micro"
+  vpc_security_group_ids = [aws_security_group.app_sg.id]
+  update_default_version = true
+  user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
+    region       = var.aws_region
+    repo_url     = aws_ecr_repository.app.repository_url
+    param_prefix = local.param_prefix
+    log_group    = aws_cloudwatch_log_group.app.name
+  }))
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2.name
+  }
+
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = { Name = "${var.project}-app", Project = var.project }
+  }
+}

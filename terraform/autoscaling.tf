@@ -1,52 +1,3 @@
-data "aws_ssm_parameter" "al2023_ami" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}
-
-resource "aws_ssm_parameter" "image_tag" {
-  name  = "${local.param_prefix}/image_tag"
-  type  = "String"
-  value = "latest"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
-resource "aws_launch_template" "app" {
-  name          = "${var.project}-app"
-  image_id      = data.aws_ssm_parameter.al2023_ami.insecure_value
-  instance_type = "t3.micro"
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.ec2.name
-  }
-
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1
-  }
-
-  user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
-    region       = var.aws_region
-    repo_url     = aws_ecr_repository.app.repository_url
-    param_prefix = local.param_prefix
-    log_group    = aws_cloudwatch_log_group.app.name
-  }))
-
-  update_default_version = true
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name    = "${var.project}-app"
-      Project = var.project
-    }
-  }
-}
-
 resource "aws_autoscaling_group" "app" {
   name                      = "${var.project}-asg"
   min_size                  = var.asg_min_size
@@ -56,24 +7,15 @@ resource "aws_autoscaling_group" "app" {
   target_group_arns         = [aws_lb_target_group.app.arn]
   health_check_type         = "ELB"
   health_check_grace_period = 300
-  # Класичний cooldown для simple scaling. Target tracking нижче використовує warmup.
-  default_cooldown        = 180
-  default_instance_warmup = 120
+  default_cooldown          = 180
+  default_instance_warmup   = 120
+  enabled_metrics           = ["GroupDesiredCapacity", "GroupInServiceInstances"]
 
   launch_template {
     id      = aws_launch_template.app.id
     version = "$Latest"
   }
 
-  enabled_metrics = [
-    "GroupDesiredCapacity",
-    "GroupInServiceInstances",
-    "GroupMinSize",
-    "GroupMaxSize",
-    "GroupTotalInstances",
-  ]
-
-  # Розклад і target tracking змінюють ці значення поза Terraform.
   lifecycle {
     ignore_changes = [desired_capacity, min_size]
   }
@@ -83,28 +25,8 @@ resource "aws_autoscaling_group" "app" {
     value               = "${var.project}-app"
     propagate_at_launch = true
   }
-
-  tag {
-    key                 = "Project"
-    value               = var.project
-    propagate_at_launch = true
-  }
-
-  depends_on = [
-    aws_iam_role_policy.ec2_app,
-    aws_iam_role_policy_attachment.ec2_ssm_core,
-    aws_ssm_parameter.database_url,
-    aws_ssm_parameter.jwt_secret,
-    aws_ssm_parameter.admin_username,
-    aws_ssm_parameter.admin_password,
-    aws_ssm_parameter.redis_url,
-    aws_ssm_parameter.cache_enabled,
-    aws_ssm_parameter.cache_ttl,
-    aws_ssm_parameter.image_tag,
-  ]
 }
 
-# Ціль — запити на інстанс, не CPU: процес більшість часу чекає на Postgres.
 resource "aws_autoscaling_policy" "requests" {
   name                      = "${var.project}-requests-per-target"
   autoscaling_group_name    = aws_autoscaling_group.app.name
