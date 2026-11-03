@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -8,8 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Session
 import jwt
+import redis
 
-from cache import NOTES_LIST_KEY, cache_stats, invalidate, redis_client, remember
 from database import Base, engine, ensure_schema, get_db
 
 SECRET_KEY = os.environ["JWT_SECRET_KEY"]
@@ -18,8 +19,51 @@ ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 APP_VERSION = os.getenv("APP_VERSION", "local")
 ALGORITHM = "HS256"
 LIST_LIMIT = 50
+NOTES_LIST_KEY = "notes:list"
+_redis = None
 
 security = HTTPBearer(auto_error=False)
+
+
+def redis_client():
+    global _redis
+    url = os.getenv("REDIS_URL")
+    on = os.getenv("CACHE_ENABLED", "true").lower() in ("1", "true", "yes")
+    if not on or not url:
+        return None
+    if _redis is None:
+        _redis = redis.Redis.from_url(url, socket_timeout=1, decode_responses=True)
+    return _redis
+
+
+def remember(key, loader):
+    client = redis_client()
+    ttl = int(os.getenv("CACHE_TTL_SECONDS", "45"))
+    if client is None:
+        return loader(), "BYPASS"
+    try:
+        raw = client.get(key)
+        if raw is not None:
+            return json.loads(raw), "HIT"
+        data = loader()
+        if data is not None:
+            client.setex(key, ttl, json.dumps(data))
+        return data, "MISS"
+    except redis.RedisError:
+        return loader(), "BYPASS"
+
+
+def invalidate(*keys):
+    client = redis_client()
+    if client and keys:
+        try:
+            client.delete(*keys)
+        except redis.RedisError:
+            return
+
+
+def cache_stats():
+    return {"enabled": redis_client() is not None, "ttl_seconds": int(os.getenv("CACHE_TTL_SECONDS", "45"))}
 
 
 class NoteModel(Base):
