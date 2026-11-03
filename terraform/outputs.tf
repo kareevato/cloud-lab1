@@ -20,13 +20,13 @@ output "github_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
 
-output "instance_id" {
-  value = aws_instance.app.id
+output "asg_name" {
+  value = aws_autoscaling_group.app.name
 }
 
 output "ssm_session_command" {
-  description = "Доступ до сервера без SSH"
-  value       = "aws ssm start-session --region ${var.aws_region} --target ${aws_instance.app.id}"
+  description = "Знайти інстанс застосунку і зайти без SSH"
+  value       = "aws ec2 describe-instances --region ${var.aws_region} --filters Name=tag:Name,Values=${var.project}-app Name=instance-state-name,Values=running --query 'Reservations[].Instances[].InstanceId' --output text"
 }
 
 output "dashboard_url" {
