@@ -25,7 +25,8 @@ ECR — реєстр образів, RDS — керована база, секр
 - `docs/LOADTEST.md` — сценарій k6 і куди вписати результати
 - `docs/ALERTS.md` — лист при максимумі екземплярів
 - `docs/CACHE.md` — cache-aside і порівняння з вимкненим кешем
-- `docs/SCHEDULE.md` — бонус: удень мінімум 2 екземпляри, уночі 1
+
+Розклад «удень 2, уночі 1» описаний у кінці `docs/AUTOSCALING.md`.
 
 ## Ендпоінти
 
@@ -41,7 +42,7 @@ ECR — реєстр образів, RDS — керована база, секр
 app/                  FastAPI застосунок
 Dockerfile, compose.yaml
 .github/workflows/    CI/CD
-terraform/            інфраструктура (network, security, database, compute, autoscaling, cache, alb, cicd, monitoring, budget)
+terraform/            інфраструктура (network, security, database, compute, alb, cicd, monitoring, budget)
 loadtest/             сценарій k6
 docs/                 опис політики, тестів, алертів і кешу
 ```

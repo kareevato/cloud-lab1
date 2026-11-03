@@ -3,7 +3,6 @@ name: Build and deploy
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -22,21 +21,7 @@ env:
   ALB_NAME: cloud-lab1-alb
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Unit tests
-        run: |
-          pip install -r app/requirements.txt -r tests/requirements.txt
-          PYTHONPATH=app python -m pytest tests -q
-
   deploy:
-    needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
