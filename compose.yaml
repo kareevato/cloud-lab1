@@ -14,12 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    restart: always
-    ports:
-      - "6379:6379"
-
   app:
     build: .
     restart: always
@@ -28,16 +22,11 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      REDIS_URL: redis://redis:6379/0
-      CACHE_ENABLED: "true"
-      CACHE_TTL_SECONDS: "45"
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
 
 volumes:
   postgres_data:

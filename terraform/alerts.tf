@@ -1,14 +1,13 @@
-resource "aws_cloudwatch_metric_alarm" "at_max_capacity" {
-  alarm_name          = "${var.project}-at-max-instances"
-  alarm_description   = "Група тримає максимум екземплярів 2 хвилини: масштабування вперлося в стелю"
-  namespace           = "AWS/AutoScaling"
-  metric_name         = "GroupInServiceInstances"
-  statistic           = "Maximum"
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "${var.project}-cpu-high"
+  alarm_description   = "Середнє CPU сервісу вище 70% протягом 2 хвилин"
+  namespace           = "AWS/EC2"
+  metric_name         = "CPUUtilization"
+  statistic           = "Average"
   period              = 60
   evaluation_periods  = 2
-  datapoints_to_alarm = 2
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  threshold           = var.asg_max_size
+  threshold           = 70
+  comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"
 
   dimensions = {

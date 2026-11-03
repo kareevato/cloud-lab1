@@ -59,8 +59,3 @@ variable "asg_max_size" {
   }
 }
 
-variable "requests_per_target_per_minute" {
-  type        = number
-  default     = 1000
-  description = "Ціль target tracking: запитів на інстанс за хвилину"
-}

@@ -114,34 +114,3 @@ resource "aws_launch_template" "app" {
     tags          = { Name = "${var.project}-app", Project = var.project }
   }
 }
-
-resource "aws_autoscaling_policy" "requests" {
-  name                      = "${var.project}-requests-per-target"
-  autoscaling_group_name    = aws_autoscaling_group.app.name
-  policy_type               = "TargetTrackingScaling"
-  estimated_instance_warmup = 120
-
-  target_tracking_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ALBRequestCountPerTarget"
-      resource_label         = "${aws_lb.main.arn_suffix}/${aws_lb_target_group.app.arn_suffix}"
-    }
-    target_value = var.requests_per_target_per_minute
-  }
-}
-
-resource "aws_ssm_parameter" "cache_enabled" {
-  name  = "${local.param_prefix}/cache_enabled"
-  type  = "String"
-  value = "true"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
-resource "aws_ssm_parameter" "cache_ttl" {
-  name  = "${local.param_prefix}/cache_ttl_seconds"
-  type  = "String"
-  value = "45"
-}

@@ -1,61 +1,62 @@
-# Cloud Lab 2 — масштабування, моніторинг і кеш
+# Cloud Lab 1
 
-Гілка `main` лишається лабораторною 1 (один EC2). Ця гілка додає лабораторну 2 в той самий Terraform-проєкт.
+REST API для нотаток. Бекенд на Python (FastAPI) з PostgreSQL, запакований у Docker.
 
-REST API для нотаток (FastAPI + PostgreSQL) з JWT і Redis cache-aside. В AWS (`eu-north-1`): ALB, Auto Scaling Group (1–3), окремий Redis, RDS у приватних підмережах. CI/CD — GitHub Actions через OIDC.
+Гілка `main` — лабораторна 1, один EC2. Ця гілка додає лабораторну 2 і не замінює `main`.
 
-`terraform apply` на цій гілці **замінює** один EC2 лабораторної 1 на групу. Це свідомий крок, не побічний ефект. Після захисту — `terraform destroy`: Redis і додаткові екземпляри виходять за Free Tier.
-
-- **Публічна адреса:** http://cloud-lab1-alb-1413139306.eu-north-1.elb.amazonaws.com
-- **Swagger UI:** http://cloud-lab1-alb-1413139306.eu-north-1.elb.amazonaws.com/docs
-
-## Архітектура
-
-```
-Internet → ALB :80 → ASG (1–3 × EC2 :8000) → RDS PostgreSQL :5432 (private)
-                              ↘ Redis :6379 (окремий EC2, лише з SG застосунку)
-GitHub push → Actions (OIDC) → ECR :<commit-sha> → SSM → усі інстанси групи
-```
-
-ECR — реєстр образів, RDS — керована база, секрети — у SSM Parameter Store, логи, панель і алерти — CloudWatch + SNS, бюджет — AWS Budgets.
-
-Документи лабораторної 2:
-
-- `docs/AUTOSCALING.md` — політика, warmup/cooldown, панель
-- `docs/LOADTEST.md` — сценарій k6 і куди вписати результати
-- `docs/ALERTS.md` — лист при максимумі екземплярів
-- `docs/CACHE.md` — cache-aside і порівняння з вимкненим кешем
-- `docs/SCHEDULE.md` — бонус: удень мінімум 2 екземпляри, уночі 1
+**Публічна адреса:** http://cloud-lab1-alb-1413139306.eu-north-1.elb.amazonaws.com (діє лише під час демонстрації)
 
 ## Ендпоінти
 
-| Метод | Шлях | Доступ |
-|---|---|---|
-| GET | `/health`, `/`, `/notes`, `/notes/{id}`, `/authors/{name}`, `/cache/stats` | публічні |
-| POST | `/auth/login` | повертає JWT |
-| POST | `/notes` | лише з JWT, інакше 401 |
+- `GET /health` — перевірка стану сервера
+- `GET /notes` — список нотаток
+- `GET /notes/{id}` — нотатка за id
+- `POST /auth/login` — JWT
+- `POST /notes` — додати нотатку, лише з JWT
+- `GET /docs` — Swagger UI
 
 ## Структура
 
 ```
-app/                  FastAPI застосунок
-Dockerfile, compose.yaml
-.github/workflows/    CI/CD
-terraform/            інфраструктура; для лаби 2 ще autoscaling, schedule, redis, alerts
-loadtest/             сценарій k6
-cache.js, test.js     cache-aside і один тест
-docs/                 опис політики, тестів, алертів і кешу
+app/ — застосунок
+config/ — кеш у пам'яті
+loadtest/ — сценарій k6
+docs/ — опис лабораторної 2
+Dockerfile
+compose.yaml
+terraform/ — інфраструктура в AWS
+.github/workflows/ — автоматичний деплой
 ```
 
-## Запуск
+## Запуск локально
 
-```bash
-# локально
-cp .env.example .env && docker compose up -d --build
-
-# AWS
-cd terraform && cp terraform.tfvars.example terraform.tfvars && terraform init && terraform apply
-
-# видалення
-terraform destroy
 ```
+cp .env.example .env
+docker compose up -d --build
+```
+
+Застосунок буде на `http://localhost:8000`.
+
+## Розгортання в AWS
+
+Інфраструктура описана в Terraform: мережа, ECR, база RDS у приватній підмережі, Auto Scaling Group і балансувальник.
+
+```
+cd terraform
+terraform init
+terraform apply
+```
+
+`terraform apply` на цій гілці замінює один EC2 лабораторної 1 на групу. Після захисту — `terraform destroy`.
+
+## Лабораторна 2
+
+Масштабування, навантажувальне тестування, моніторинг і кешування. Опис у папці docs:
+
+- `docs/AUTOSCALING.md` — автомасштабування, параметри і пояснення
+- `docs/LOADTEST.md` — сценарій k6 і результати
+- `docs/ALERTS.md` — сповіщення на пошту
+- `docs/CACHE.md` — кеш у пам'яті і порівняння
+- `docs/SCHEDULE.md` — масштабування за розкладом і розрахунок економії
+
+Тест запускається командою `k6 run -e BASE_URL=http://адреса -e ADMIN_PASSWORD='...' loadtest/test.js`.

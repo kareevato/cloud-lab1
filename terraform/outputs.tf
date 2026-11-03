@@ -24,10 +24,6 @@ output "asg_name" {
   value = aws_autoscaling_group.app.name
 }
 
-output "redis_private_ip" {
-  value = aws_instance.redis.private_ip
-}
-
 output "ssm_session_command" {
   description = "Знайти інстанс застосунку і зайти без SSH"
   value       = "aws ec2 describe-instances --region ${var.aws_region} --filters Name=tag:Name,Values=${var.project}-app Name=instance-state-name,Values=running --query 'Reservations[].Instances[].InstanceId' --output text"

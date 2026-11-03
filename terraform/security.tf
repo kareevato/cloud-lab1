@@ -66,26 +66,3 @@ resource "aws_security_group" "db_sg" {
 
   tags = { Name = "${var.project}-db-sg" }
 }
-
-# Redis приймає трафік лише від застосунку. Публічного входу немає.
-resource "aws_security_group" "redis_sg" {
-  name   = "${var.project}-redis-sg"
-  vpc_id = aws_vpc.main.id
-
-  ingress {
-    description     = "Redis from app"
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
-    security_groups = [aws_security_group.app_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project}-redis-sg" }
-}
