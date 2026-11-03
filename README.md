@@ -41,7 +41,7 @@ ECR — реєстр образів, RDS — керована база, секр
 app/                  FastAPI застосунок
 Dockerfile, compose.yaml
 .github/workflows/    CI/CD
-terraform/            інфраструктура (network, security, database, compute, alb, cicd, monitoring, budget)
+terraform/            інфраструктура; для лаби 2 ще autoscaling, schedule, redis, alerts
 loadtest/             сценарій k6
 docs/                 опис політики, тестів, алертів і кешу
 ```

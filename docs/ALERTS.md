@@ -4,7 +4,7 @@
 
 ## Умова
 
-Алерт `cloud-lab1-at-max-instances` у `terraform/monitoring.tf`.
+Алерт `cloud-lab1-at-max-instances` у `terraform/alerts.tf`.
 
 - Метрика: `GroupInServiceInstances` групи `cloud-lab1-asg`.
 - Поріг: максимум групи (3).

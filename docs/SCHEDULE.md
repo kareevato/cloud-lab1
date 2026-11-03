@@ -1,6 +1,6 @@
 # Масштабування за розкладом
 
-Дві дії в `terraform/compute.tf`, часовий пояс `Europe/Kyiv`.
+Дві дії в `terraform/schedule.tf`, часовий пояс `Europe/Kyiv`.
 
 | Коли | min | desired | max |
 |---|---|---|---|
