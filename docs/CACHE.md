@@ -2,7 +2,7 @@
 
 Гаряче читання — `GET /notes` (останні 50 нотаток). Та сама схема cache-aside стоїть на `GET /notes/{id}` і `GET /authors/{author}`, бо сценарій навантаження б'є і в них.
 
-Код: функція `remember` у `app/main.py`.
+Код: `remember` у `cache.js`. У сервісі ту саму схему виконує `remember` у `app/main.py`.
 
 ## Схема
 

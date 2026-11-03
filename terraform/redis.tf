@@ -14,19 +14,3 @@ resource "aws_ssm_parameter" "redis_url" {
   type  = "String"
   value = "redis://${aws_instance.redis.private_ip}:6379/0"
 }
-
-resource "aws_ssm_parameter" "cache_enabled" {
-  name  = "${local.param_prefix}/cache_enabled"
-  type  = "String"
-  value = "true"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
-resource "aws_ssm_parameter" "cache_ttl" {
-  name  = "${local.param_prefix}/cache_ttl_seconds"
-  type  = "String"
-  value = "45"
-}

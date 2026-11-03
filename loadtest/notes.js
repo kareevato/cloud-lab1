@@ -2,12 +2,9 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 const vus = Number(__ENV.VUS || 15);
-export const options = {
-  stages: [
-    { duration: '3m', target: vus }, { duration: '5m', target: vus }, { duration: '2m', target: 0 },
-  ],
-  summaryTrendStats: ['med', 'p(95)', 'p(99)'],
-};
+export const options = { summaryTrendStats: ['med', 'p(95)', 'p(99)'], stages: [
+  { duration: '3m', target: vus }, { duration: '5m', target: vus }, { duration: '2m', target: 0 },
+] };
 
 export function setup() {
   const login = http.post(`${__ENV.BASE_URL}/auth/login`, JSON.stringify({
@@ -24,8 +21,7 @@ export default function (data) {
   check(created, { 'write 200': (r) => r.status === 200 });
   const id = created.json('id'), author = created.json('author');
   for (let i = 0; i < 9; i++) {
-    const path = ['/notes', `/notes/${id}`, `/authors/${author}`][i % 3];
-    check(http.get(base + path), { 'read 200': (r) => r.status === 200 });
+    check(http.get(base + ['/notes', `/notes/${id}`, `/authors/${author}`][i % 3]), { 'read 200': (r) => r.status === 200 });
   }
   sleep(1);
 }

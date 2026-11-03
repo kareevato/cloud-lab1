@@ -1,6 +1,6 @@
 # Автоматичне масштабування
 
-Один EC2 з лабораторної 1 замінено на Auto Scaling Group. Опис — у `terraform/autoscaling.tf`.
+Один EC2 з лабораторної 1 замінено на Auto Scaling Group. Група — у `terraform/autoscaling.tf`, політика запитів — у `terraform/compute.tf`.
 
 ## Параметри
 

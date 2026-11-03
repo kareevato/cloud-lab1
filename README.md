@@ -43,6 +43,7 @@ Dockerfile, compose.yaml
 .github/workflows/    CI/CD
 terraform/            інфраструктура; для лаби 2 ще autoscaling, schedule, redis, alerts
 loadtest/             сценарій k6
+cache.js, test.js     cache-aside і один тест
 docs/                 опис політики, тестів, алертів і кешу
 ```
 
