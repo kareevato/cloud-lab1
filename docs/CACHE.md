@@ -44,7 +44,7 @@ ElastiCache свідомо не використаний. Найменший к�
 Кеш увімкнений за замовчуванням. Прогін:
 
 ```bash
-k6 run --summary-export loadtest/summary.json -e BASE_URL=http://<alb-dns> -e ADMIN_PASSWORD='...' -e VUS=15 loadtest/notes.js
+BASE_URL=http://<alb-dns> ADMIN_PASSWORD='...' VUS=15 ./loadtest/run.sh
 ```
 
 Вимкнути і задеплоїти заново (на кожному інстансі застосунку):

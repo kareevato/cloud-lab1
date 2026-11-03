@@ -1,6 +1,6 @@
 # Навантажувальний сценарій
 
-Сценарій: `loadtest/notes.js`. Запуск однією командою `k6 run`.
+Сценарій: `loadtest/notes.js`. Інструкція запуску і одна команда: `loadtest/run.sh`.
 
 ## Профіль
 
@@ -26,20 +26,10 @@
 ## Команда
 
 ```bash
-k6 run --summary-export loadtest/summary.json \
-  -e BASE_URL=http://<alb-dns> \
-  -e ADMIN_PASSWORD='...' \
-  -e VUS=15 \
-  loadtest/notes.js
+BASE_URL=http://<alb-dns> ADMIN_PASSWORD='...' VUS=15 ./loadtest/run.sh
 ```
 
-`ADMIN_USERNAME` за замовчуванням `admin` (передається так само, через `-e`). Якщо `k6` немає локально, та сама команда всередині контейнера:
-
-```bash
-docker run --rm -v "$PWD:/work" -w /work grafana/k6:0.54.0 run \
-  --summary-export /work/loadtest/summary.json \
-  -e BASE_URL=http://<alb-dns> -e ADMIN_PASSWORD='...' -e VUS=15 loadtest/notes.js
-```
+`ADMIN_USERNAME` за замовчуванням `admin`. Якщо `k6` немає локально, скрипт сам запускає `grafana/k6` у Docker. Для адреси ALB в інтернеті це працює. Для локального Compose ставте `k6` на хост і `BASE_URL=http://localhost:8000`.
 
 Після прогону сирий звіт лежить у `loadtest/summary.json` (файл у `.gitignore`).
 
